@@ -15,3 +15,10 @@ A few simple heuristics we can start from:
 - bought within first N blocks of token launch = maybe snipe bot? could then look into gas prices, % of initial supply bought, if there were other similar tx within the timeframe, if it was from a smart contract instead of a wallet
 - same token pair traded on multiple exchanges in the same block / short timeframe = maybe arbitrage bot? could then look if price difference between exchanges is bigger than a certain threshold
 - bought and sold immediately after each other = maybe wash trading? could then look if there was any meaningful price difference
+
+## Interesting ideas for version 2 (no hard plan)
+
+### Cluster analysis
+
+1. flag a wallet as having toxic flow
+2. look at all wallets that have interacted with flagged wallet as well (maybe some are seeders and can lead us to other toxic wallets)
