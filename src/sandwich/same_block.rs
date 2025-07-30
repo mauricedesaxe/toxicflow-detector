@@ -15,6 +15,9 @@ pub struct SwapTransaction {
     pub pool_address: String,
     pub token_launch_block: u64,
     pub is_contract_caller: bool,
+    pub usd_value_in: f64,
+    pub usd_value_out: f64,
+    pub gas_cost_usd: f64,
 }
 
 #[derive(Debug, PartialEq)]
@@ -195,7 +198,9 @@ fn calculate_sandwich_confidence(
         confidence += 0.1;
     }
 
-    if back.amount_out > front.amount_in {
+    let total_profit =
+        back.usd_value_out - front.usd_value_in - front.gas_cost_usd - back.gas_cost_usd;
+    if total_profit > 0.0 {
         confidence += 0.25;
     }
 
@@ -263,12 +268,66 @@ mod tests {
             "Should detect non-consecutive USDC/SHIB sandwich attack by 0xsandwich_bot"
         );
 
-        for attack in &attacks {
-            assert!(
-                attack.confidence_score > 0.5,
-                "Attack confidence should be > 0.5, got {}",
-                attack.confidence_score
-            );
-        }
+        let unprofitable_attack = attacks
+            .iter()
+            .find(|a| {
+                a.front_run_tx.tx_hash == "0xsandwich1" && a.back_run_tx.tx_hash == "0xsandwich2"
+            })
+            .expect("Should find unprofitable sandwich attack");
+
+        let profitable_attack1 = attacks
+            .iter()
+            .find(|a| {
+                a.front_run_tx.tx_hash == "0xsandwich3" && a.back_run_tx.tx_hash == "0xsandwich4"
+            })
+            .expect("Should find profitable sandwich attack");
+
+        let profitable_attack2 = attacks
+            .iter()
+            .find(|a| {
+                a.front_run_tx.tx_hash == "0xfront_run" && a.back_run_tx.tx_hash == "0xback_run"
+            })
+            .expect("Should find profitable sandwich attack");
+
+        let unprofitable_profit = unprofitable_attack.back_run_tx.usd_value_out
+            - unprofitable_attack.front_run_tx.usd_value_in
+            - unprofitable_attack.front_run_tx.gas_cost_usd
+            - unprofitable_attack.back_run_tx.gas_cost_usd;
+
+        let profitable_profit1 = profitable_attack1.back_run_tx.usd_value_out
+            - profitable_attack1.front_run_tx.usd_value_in
+            - profitable_attack1.front_run_tx.gas_cost_usd
+            - profitable_attack1.back_run_tx.gas_cost_usd;
+
+        let profitable_profit2 = profitable_attack2.back_run_tx.usd_value_out
+            - profitable_attack2.front_run_tx.usd_value_in
+            - profitable_attack2.front_run_tx.gas_cost_usd
+            - profitable_attack2.back_run_tx.gas_cost_usd;
+
+        assert!(
+            unprofitable_profit < 0.0,
+            "First sandwich should be unprofitable after gas costs: profit = {}",
+            unprofitable_profit
+        );
+
+        assert!(
+            profitable_profit1 > 0.0,
+            "Second sandwich should be profitable after gas costs: profit = {}",
+            profitable_profit1
+        );
+        assert!(
+            profitable_profit2 > 0.0,
+            "Third sandwich should be profitable after gas costs: profit = {}",
+            profitable_profit2
+        );
+
+        assert!(
+            profitable_attack1.confidence_score > unprofitable_attack.confidence_score,
+            "Profitable sandwich should have higher confidence than unprofitable one"
+        );
+        assert!(
+            profitable_attack2.confidence_score > unprofitable_attack.confidence_score,
+            "Profitable sandwich should have higher confidence than unprofitable one"
+        );
     }
 }
