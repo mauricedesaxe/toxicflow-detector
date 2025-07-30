@@ -27,3 +27,9 @@ tx_hash,block_number,timestamp,tx_position_in_block,from_address,token_in,token_
 0xsandwich3,12361,1640995412,1,0xbot123,ETH,NEWTOKEN,2,1000000,300,0xpool4,12347,true
 0xvictim002,12361,1640995412,2,0xinnocent,ETH,NEWTOKEN,1,450000,150,0xpool4,12347,false
 0xsandwich4,12361,1640995412,3,0xbot123,NEWTOKEN,ETH,1100000,2.2,80,0xpool4,12347,true
+0xfront_run,12362,1640995424,1,0xsandwich_bot,USDC,SHIB,2000,3800000,280,0xpool1,12340,true
+0xunrelated1,12362,1640995424,2,0xrandom_user,ETH,USDC,1,3100,150,0xpool2,10000,false
+0xunrelated2,12362,1640995424,3,0xanother_user,BTC,ETH,0.05,1.4,140,0xpool3,8000,false
+0xvictim_nc,12362,1640995424,4,0xinnocent_trader,USDC,SHIB,8000,14000000,180,0xpool1,12340,false
+0xunrelated3,12362,1640995424,5,0xlegit_trader,NEWTOKEN,USDC,200000,1900,160,0xpool4,12347,false
+0xback_run,12362,1640995424,6,0xsandwich_bot,SHIB,USDC,4200000,2200,120,0xpool1,12340,true

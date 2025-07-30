@@ -70,29 +70,44 @@ fn find_sandwiches_in_block(
         return Err("not enough transactions to have a sandwich".to_string());
     }
 
-    // TODO: Improve scanning logic - currently only checks consecutive transactions (i, i+1, i+2)
-    // Real sandwich attacks can have multiple victims or other unrelated transactions between
-    // front-run and back-run. Need more sophisticated pattern matching.
-    for i in 0..transactions.len() - 2 {
-        let potential_front = &transactions[i];
-        let potential_victim = &transactions[i + 1];
-        let potential_back = &transactions[i + 2];
+    for front_pos in 0..transactions.len() - 2 {
+        let front_tx = &transactions[front_pos];
 
-        if is_sandwich_pattern(potential_front, potential_victim, potential_back) {
-            attacks.push(SandwichAttack {
-                front_run_tx: potential_front.clone(),
-                victim_tx: potential_victim.clone(),
-                back_run_tx: potential_back.clone(),
-                confidence_score: calculate_sandwich_confidence(
-                    potential_front,
-                    potential_victim,
-                    potential_back,
-                ),
-            });
+        for back_pos in front_pos + 2..transactions.len() {
+            let back_tx = &transactions[back_pos];
+
+            if front_tx.from_address != back_tx.from_address {
+                continue;
+            }
+
+            if !are_tokens_reversed(front_tx, back_tx) {
+                continue;
+            }
+
+            for victim_pos in front_pos + 1..back_pos {
+                let victim_tx = &transactions[victim_pos];
+
+                if is_sandwich_pattern(front_tx, victim_tx, back_tx) {
+                    attacks.push(SandwichAttack {
+                        front_run_tx: front_tx.clone(),
+                        victim_tx: victim_tx.clone(),
+                        back_run_tx: back_tx.clone(),
+                        confidence_score: calculate_sandwich_confidence(
+                            front_tx, victim_tx, back_tx,
+                        ),
+                    });
+                }
+            }
         }
     }
 
-    return Ok(attacks);
+    Ok(attacks)
+}
+
+/// Checks if the tokens in the swap transactions are reversed,
+/// for example buying first and selling second.
+fn are_tokens_reversed(a: &SwapTransaction, b: &SwapTransaction) -> bool {
+    return a.token_in == b.token_out && a.token_out == b.token_in;
 }
 
 /// A rudimentary sandwich pattern detection function.
@@ -217,7 +232,7 @@ mod tests {
 
         let attacks = find_sandwiches(&transactions);
 
-        assert_eq!(attacks.len(), 2, "Should detect exactly 2 sandwich attacks");
+        assert_eq!(attacks.len(), 3, "Should detect exactly 3 sandwich attacks");
 
         let attack_hashes: Vec<(&str, &str, &str)> = attacks
             .iter()
@@ -237,6 +252,10 @@ mod tests {
         assert!(
             attack_hashes.contains(&("0xsandwich3", "0xvictim002", "0xsandwich4")),
             "Should detect ETH/NEWTOKEN sandwich attack by 0xbot123"
+        );
+        assert!(
+            attack_hashes.contains(&("0xfront_run", "0xvictim_nc", "0xback_run")),
+            "Should detect non-consecutive USDC/SHIB sandwich attack by 0xsandwich_bot"
         );
 
         for attack in &attacks {
