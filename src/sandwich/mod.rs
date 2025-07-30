@@ -7,4 +7,4 @@
 pub mod same_block;
 
 // Re-export main types and functions for convenience
-pub use same_block::{find_sandwiches, SandwichAttack, SwapTransaction};
+pub use same_block::{find_same_block_sandwiches, SandwichAttack, SwapTransaction};

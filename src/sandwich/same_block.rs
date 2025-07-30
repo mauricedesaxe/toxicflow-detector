@@ -26,7 +26,7 @@ pub struct SandwichAttack {
 }
 
 /// Find sandwich attacks in a list of swap transactions.
-pub fn find_sandwiches(transactions: &[SwapTransaction]) -> Vec<SandwichAttack> {
+pub fn find_same_block_sandwiches(transactions: &[SwapTransaction]) -> Vec<SandwichAttack> {
     let mut attacks = Vec::new();
     let transactions_by_block = group_transactions_by_block(transactions);
 
@@ -232,7 +232,7 @@ mod tests {
             "Should load some transactions from CSV"
         );
 
-        let attacks = find_sandwiches(&transactions);
+        let attacks = find_same_block_sandwiches(&transactions);
 
         assert_eq!(attacks.len(), 3, "Should detect exactly 3 sandwich attacks");
 
