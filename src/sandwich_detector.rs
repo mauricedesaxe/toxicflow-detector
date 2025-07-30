@@ -61,6 +61,8 @@ fn group_transactions_by_block(
     return grouped;
 }
 
+/// Go through the given swap transactions (assumed to be in the same block)
+/// and find any sandwich attacks.
 fn find_sandwiches_in_block(
     transactions: &[SwapTransaction],
 ) -> Result<Vec<SandwichAttack>, String> {
