@@ -25,7 +25,10 @@ pub struct SandwichAttack {
     pub confidence_score: f32,
 }
 
-/// Find sandwich attacks in a list of swap transactions.
+/// Find same block sandwich attacks in a list of swap transactions.
+///
+/// First we group transactions by their block number, sorting them by position within the block.
+/// Then we find sandwiches within each block.
 pub fn find_same_block_sandwiches(transactions: &[SwapTransaction]) -> Vec<SandwichAttack> {
     let mut attacks = Vec::new();
     let transactions_by_block = group_transactions_by_block(transactions);
