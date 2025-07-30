@@ -116,7 +116,7 @@ fn are_tokens_reversed(a: &SwapTransaction, b: &SwapTransaction) -> bool {
 /// Returning `true` doesn't mean it was a (profitable) sandwich attack,
 /// but it means the swap directions are there.
 ///
-/// Note: some of these, like forcing the same token for the attacker in/out are
+/// TODO: some of these, like forcing the same token for the attacker in/out are
 /// not always true for real sandwich attacks, but good enough for us for now.
 fn is_sandwich_pattern(
     front: &SwapTransaction,
