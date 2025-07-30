@@ -70,6 +70,9 @@ fn find_sandwiches_in_block(
         return Err("not enough transactions to have a sandwich".to_string());
     }
 
+    // TODO: Improve scanning logic - currently only checks consecutive transactions (i, i+1, i+2)
+    // Real sandwich attacks can have multiple victims or other unrelated transactions between
+    // front-run and back-run. Need more sophisticated pattern matching.
     for i in 0..transactions.len() - 2 {
         let potential_front = &transactions[i];
         let potential_victim = &transactions[i + 1];
@@ -140,9 +143,15 @@ fn is_sandwich_pattern(
 
 /// Takes 3 swap transactions which have already been validated to have
 /// a sandwich pattern and calculates the confidence that the attacker
-/// is a MEV bot using gas prices, if contract checks, and profit analysis.
+/// is a MEV sandwich bot.
 ///
 /// The base confidence is 0.5, a coin flip. The max confidence is 1.0.
+///
+/// TODO: This detection "algorithm" is very rudimentary to say the least.
+/// We can add things like a swap size factor, profit validation in USD,
+/// flashloan detection, known MEV bot addresses,
+/// priority fee analysis, figure out private mempools,
+/// and more sophisticated confidence scoring weights.
 fn calculate_sandwich_confidence(
     front: &SwapTransaction,
     victim: &SwapTransaction,
