@@ -126,12 +126,12 @@ fn is_sandwich_pattern(
     }
 
     // Front and victim should be same token direction (attacker buys before victim)
-    if front.token_in != victim.token_out || victim.token_in != back.token_out {
+    if front.token_in != victim.token_in || front.token_out != victim.token_out {
         return false;
     }
 
     // Victim and back should be different token direction (attacker sells back to victim)
-    if victim.token_in == back.token_out {
+    if victim.token_in == back.token_in && victim.token_out == back.token_out {
         return false;
     }
 
