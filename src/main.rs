@@ -1,4 +1,4 @@
-mod sandwich_detector;
+mod sandwich;
 
 fn main() {
     println!("Hello from Toxic Flow Detector!");
