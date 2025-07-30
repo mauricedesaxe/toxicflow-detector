@@ -22,3 +22,5 @@ A few simple heuristics we can start from:
 
 1. flag a wallet as having toxic flow
 2. look at all wallets that have interacted with flagged wallet as well (maybe some are seeders and can lead us to other toxic wallets)
+
+### Use real transactions
