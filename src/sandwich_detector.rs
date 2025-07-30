@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Deserialize)]
 pub struct SwapTransaction {
     pub tx_hash: String,
     pub block_number: u64,
@@ -175,4 +175,67 @@ fn calculate_sandwich_confidence(
     }
 
     return confidence;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    fn load_sample_transactions() -> Vec<SwapTransaction> {
+        let csv_content =
+            fs::read_to_string("data/sample_swaps.csv").expect("Failed to read sample CSV file");
+
+        let mut reader = csv::Reader::from_reader(csv_content.as_bytes());
+        let mut transactions = Vec::new();
+
+        for result in reader.deserialize() {
+            let transaction: SwapTransaction = result.expect("Failed to parse CSV row");
+            transactions.push(transaction);
+        }
+
+        transactions
+    }
+
+    #[test]
+    fn test_sandwich_detection_with_sample_data() {
+        let transactions = load_sample_transactions();
+
+        assert!(
+            !transactions.is_empty(),
+            "Should load some transactions from CSV"
+        );
+
+        let attacks = find_sandwiches(&transactions);
+
+        assert_eq!(attacks.len(), 2, "Should detect exactly 2 sandwich attacks");
+
+        let attack_hashes: Vec<(&str, &str, &str)> = attacks
+            .iter()
+            .map(|a| {
+                (
+                    a.front_run_tx.tx_hash.as_str(),
+                    a.victim_tx.tx_hash.as_str(),
+                    a.back_run_tx.tx_hash.as_str(),
+                )
+            })
+            .collect();
+
+        assert!(
+            attack_hashes.contains(&("0xsandwich1", "0xvictim001", "0xsandwich2")),
+            "Should detect USDC/SHIB sandwich attack by 0xattacker1"
+        );
+        assert!(
+            attack_hashes.contains(&("0xsandwich3", "0xvictim002", "0xsandwich4")),
+            "Should detect ETH/NEWTOKEN sandwich attack by 0xbot123"
+        );
+
+        for attack in &attacks {
+            assert!(
+                attack.confidence_score > 0.5,
+                "Attack confidence should be > 0.5, got {}",
+                attack.confidence_score
+            );
+        }
+    }
 }
