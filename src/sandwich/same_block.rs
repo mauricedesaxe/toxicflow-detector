@@ -225,6 +225,14 @@ fn calculate_sandwich_confidence(
         confidence += 0.15;
     }
 
+    let price_impact = calculate_victim_price_impact(front, victim);
+    if price_impact > 0.0 {
+        confidence += match price_impact {
+            p if p < 0.25 => p,
+            _ => 0.25,
+        };
+    }
+
     if confidence > 1.0 {
         return 1.0;
     }
@@ -249,6 +257,27 @@ fn is_proportional_sandwich(
     let back_proportional = back_ratio >= front_ratio * 0.5 && back_ratio <= front_ratio * 2.0;
 
     front_proportional && back_proportional
+}
+
+/// Calculate price impact suffered by victim due to front-running.
+/// Returns the percentage worse rate the victim got (e.g., 0.05 = 5% worse).
+/// If the victim got a better rate than the front-runner, returns 0.0.
+fn calculate_victim_price_impact(front: &SwapTransaction, victim: &SwapTransaction) -> f32 {
+    // Only calculate if they're trading in the same direction (same tokens)
+    if !are_tokens_equivalent(&front.token_in, &victim.token_in)
+        || !are_tokens_equivalent(&front.token_out, &victim.token_out)
+    {
+        return 0.0;
+    }
+
+    let front_rate = (front.usd_value_out / front.usd_value_in) as f32;
+    let victim_rate = (victim.usd_value_out / victim.usd_value_in) as f32;
+
+    if victim_rate < front_rate {
+        (front_rate - victim_rate) / front_rate
+    } else {
+        0.0
+    }
 }
 
 #[cfg(test)]
