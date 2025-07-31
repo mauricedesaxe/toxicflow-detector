@@ -141,10 +141,6 @@ fn is_sandwich_pattern(
         return false;
     }
 
-    // Should be same pool
-    if front.pool_address != victim.pool_address || victim.pool_address != back.pool_address {
-        return false;
-    }
 
     // Attacker should have gotten same type of token back.
     if front.token_in != back.token_out {
