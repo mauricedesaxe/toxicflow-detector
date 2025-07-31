@@ -114,8 +114,10 @@ fn find_sandwiches_in_block(
 
 /// Checks if the tokens in the swap transactions are reversed,
 /// for example buying first and selling second.
+/// It supports economically equivalent tokens (e.g., USDC/USDT, ETH/WETH).
 fn are_tokens_reversed(a: &SwapTransaction, b: &SwapTransaction) -> bool {
-    return a.token_in == b.token_out && a.token_out == b.token_in;
+    return are_tokens_equivalent(&a.token_in, &b.token_out)
+        && are_tokens_equivalent(&a.token_out, &b.token_in);
 }
 
 /// A rudimentary sandwich pattern detection function.
@@ -141,23 +143,45 @@ fn is_sandwich_pattern(
         return false;
     }
 
-
-    // Attacker should have gotten same type of token back.
-    if front.token_in != back.token_out {
+    // Attacker should have gotten equivalent token back
+    if !are_tokens_equivalent(&front.token_in, &back.token_out) {
         return false;
     }
 
     // Front and victim should be same token direction (attacker buys before victim)
-    if front.token_in != victim.token_in || front.token_out != victim.token_out {
+    if !are_tokens_equivalent(&front.token_in, &victim.token_in)
+        || !are_tokens_equivalent(&front.token_out, &victim.token_out)
+    {
         return false;
     }
 
     // Victim and back should be different token direction (attacker sells back to victim)
-    if victim.token_in == back.token_in && victim.token_out == back.token_out {
+    if are_tokens_equivalent(&victim.token_in, &back.token_in)
+        && are_tokens_equivalent(&victim.token_out, &back.token_out)
+    {
         return false;
     }
 
     return true;
+}
+
+/// Token equivalence groups for cross-token sandwich detection
+fn get_token_equivalence_group(token: &str) -> &str {
+    match token {
+        // Stablecoins - all ~$1 USD
+        "USDC" | "USDT" | "DAI" | "FRAX" | "BUSD" => "STABLECOINS",
+        // ETH variants
+        "ETH" | "WETH" | "stETH" => "ETH_GROUP",
+        // Bitcoin variants
+        "WBTC" | "renBTC" | "sBTC" => "BTC_GROUP",
+        // Everything else is its own group
+        _ => token,
+    }
+}
+
+/// Check if two tokens are economically equivalent
+fn are_tokens_equivalent(token_a: &str, token_b: &str) -> bool {
+    get_token_equivalence_group(token_a) == get_token_equivalence_group(token_b)
 }
 
 /// Takes 3 swap transactions which have already been validated to have
