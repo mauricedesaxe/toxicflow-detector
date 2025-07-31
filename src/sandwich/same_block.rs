@@ -262,7 +262,7 @@ mod tests {
 
         let attacks = find_same_block_sandwiches(&transactions);
 
-        assert_eq!(attacks.len(), 3, "Should detect exactly 3 sandwich attacks");
+        assert_eq!(attacks.len(), 6, "Should detect exactly 6 sandwich attacks");
 
         let attack_hashes: Vec<(&str, &str, &str)> = attacks
             .iter()
@@ -287,6 +287,18 @@ mod tests {
             attack_hashes.contains(&("0xfront_run", "0xvictim_nc", "0xback_run")),
             "Should detect non-consecutive USDC/SHIB sandwich attack by 0xsandwich_bot"
         );
+        assert!(
+            attack_hashes.contains(&("0xcross_dex1", "0xcross_victim", "0xcross_dex2")),
+            "Should detect cross-DEX USDC/ETH sandwich attack by 0xcross_bot"
+        );
+        assert!(
+            attack_hashes.contains(&("0xequiv_front", "0xequiv_victim", "0xequiv_back")),
+            "Should detect equivalent token USDC->USDT sandwich attack by 0xstable_bot"
+        );
+        assert!(
+            attack_hashes.contains(&("0xweth_front", "0xweth_victim", "0xweth_back")),
+            "Should detect WETH/ETH equivalent sandwich attack by 0xweth_mev"
+        );
 
         let unprofitable_attack = attacks
             .iter()
@@ -308,6 +320,27 @@ mod tests {
                 a.front_run_tx.tx_hash == "0xfront_run" && a.back_run_tx.tx_hash == "0xback_run"
             })
             .expect("Should find profitable sandwich attack");
+
+        let cross_dex_attack = attacks
+            .iter()
+            .find(|a| {
+                a.front_run_tx.tx_hash == "0xcross_dex1" && a.back_run_tx.tx_hash == "0xcross_dex2"
+            })
+            .expect("Should find cross-DEX sandwich attack");
+
+        let equiv_token_attack = attacks
+            .iter()
+            .find(|a| {
+                a.front_run_tx.tx_hash == "0xequiv_front" && a.back_run_tx.tx_hash == "0xequiv_back"
+            })
+            .expect("Should find equivalent token sandwich attack");
+
+        let weth_attack = attacks
+            .iter()
+            .find(|a| {
+                a.front_run_tx.tx_hash == "0xweth_front" && a.back_run_tx.tx_hash == "0xweth_back"
+            })
+            .expect("Should find WETH/ETH sandwich attack");
 
         let unprofitable_profit = unprofitable_attack.back_run_tx.usd_value_out
             - unprofitable_attack.front_run_tx.usd_value_in
@@ -348,6 +381,54 @@ mod tests {
         assert!(
             profitable_attack2.confidence_score > unprofitable_attack.confidence_score,
             "Profitable sandwich should have higher confidence than unprofitable one"
+        );
+
+        // Test cross-DEX attack (should be profitable)
+        let cross_dex_profit = cross_dex_attack.back_run_tx.usd_value_out
+            - cross_dex_attack.front_run_tx.usd_value_in
+            - cross_dex_attack.front_run_tx.gas_cost_usd
+            - cross_dex_attack.back_run_tx.gas_cost_usd;
+        assert!(
+            cross_dex_profit > 0.0,
+            "Cross-DEX sandwich should be profitable: profit = {}",
+            cross_dex_profit
+        );
+
+        // Test equivalent token attacks (should be profitable)
+        let equiv_profit = equiv_token_attack.back_run_tx.usd_value_out
+            - equiv_token_attack.front_run_tx.usd_value_in
+            - equiv_token_attack.front_run_tx.gas_cost_usd
+            - equiv_token_attack.back_run_tx.gas_cost_usd;
+        assert!(
+            equiv_profit > 0.0,
+            "Equivalent token sandwich should be profitable: profit = {}",
+            equiv_profit
+        );
+
+        let weth_profit = weth_attack.back_run_tx.usd_value_out
+            - weth_attack.front_run_tx.usd_value_in
+            - weth_attack.front_run_tx.gas_cost_usd
+            - weth_attack.back_run_tx.gas_cost_usd;
+        assert!(
+            weth_profit > 0.0,
+            "WETH/ETH sandwich should be profitable: profit = {}",
+            weth_profit
+        );
+
+        // Verify cross-DEX detection (different pools)
+        assert_ne!(
+            cross_dex_attack.front_run_tx.pool_address, cross_dex_attack.victim_tx.pool_address,
+            "Cross-DEX attack should involve different pools"
+        );
+
+        // Verify equivalent token detection
+        assert_ne!(
+            equiv_token_attack.front_run_tx.token_in, equiv_token_attack.back_run_tx.token_out,
+            "Equivalent token attack should use different but equivalent tokens"
+        );
+        assert_ne!(
+            weth_attack.front_run_tx.token_in, weth_attack.victim_tx.token_in,
+            "WETH/ETH attack should use different but equivalent tokens"
         );
     }
 }
