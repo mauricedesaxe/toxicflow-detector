@@ -491,16 +491,246 @@ mod tests {
             "WETH/ETH attack should use different but equivalent tokens"
         );
 
-        // Test proportional sizing detection
-        // Check if any attacks have proportional sizing bonus
-        let has_proportional_bonus = attacks.iter().any(|attack| {
-            let base_confidence = 0.5 + 0.25; // base + profitability bonus
-            attack.confidence_score > base_confidence + 0.1 // additional bonuses beyond basic
-        });
+        // === Test Proportional Sizing Detection ===
+        let cross_dex_front_ratio =
+            cross_dex_attack.front_run_tx.usd_value_in / cross_dex_attack.victim_tx.usd_value_in;
+        let cross_dex_back_ratio =
+            cross_dex_attack.back_run_tx.usd_value_in / cross_dex_attack.victim_tx.usd_value_in;
 
         assert!(
-            has_proportional_bonus,
-            "At least one attack should have proportional sizing or other bonus"
+            cross_dex_front_ratio >= 0.05 && cross_dex_front_ratio <= 0.5,
+            "Cross-DEX front-run should be proportionally sized (5-50% of victim): ratio = {}",
+            cross_dex_front_ratio
+        );
+
+        assert!(
+            cross_dex_back_ratio >= cross_dex_front_ratio * 0.5 && cross_dex_back_ratio <= cross_dex_front_ratio * 2.0,
+            "Cross-DEX back-run should be similar size to front-run: back_ratio = {}, front_ratio = {}",
+            cross_dex_back_ratio, cross_dex_front_ratio
+        );
+
+        // === Test Price Impact Detection ===
+        let front_rate = equiv_token_attack.front_run_tx.usd_value_out
+            / equiv_token_attack.front_run_tx.usd_value_in;
+        let victim_rate =
+            equiv_token_attack.victim_tx.usd_value_out / equiv_token_attack.victim_tx.usd_value_in;
+
+        assert!(
+            victim_rate < front_rate,
+            "Victim should have gotten worse exchange rate than front-runner: victim_rate = {}, front_rate = {}",
+            victim_rate, front_rate
+        );
+
+        let price_impact = (front_rate - victim_rate) / front_rate;
+        assert!(
+            price_impact > 0.05,
+            "Price impact should be significant (>5%): impact = {}",
+            price_impact
+        );
+
+        // === Test Gas Price Analysis ===
+        assert!(
+            profitable_attack1.front_run_tx.gas_price > profitable_attack1.victim_tx.gas_price,
+            "Front-runner should pay higher gas than victim for priority"
+        );
+
+        assert!(
+            profitable_attack1.back_run_tx.gas_price < profitable_attack1.victim_tx.gas_price,
+            "Back-runner can pay lower gas since they go after victim"
+        );
+
+        // === Test Contract Caller Detection ===
+        let contract_attacks = attacks
+            .iter()
+            .filter(|a| a.front_run_tx.is_contract_caller && a.back_run_tx.is_contract_caller)
+            .count();
+
+        assert!(
+            contract_attacks >= 2,
+            "Should detect at least 2 attacks using smart contracts: found {}",
+            contract_attacks
+        );
+
+        // === Test Confidence Score Ranges ===
+        assert!(
+            unprofitable_attack.confidence_score < 0.85,
+            "Unprofitable attacks should have lower confidence: {}",
+            unprofitable_attack.confidence_score
+        );
+
+        let max_confidence = attacks
+            .iter()
+            .map(|a| a.confidence_score)
+            .fold(0.0, f32::max);
+        assert!(
+            max_confidence > 0.8,
+            "Best attacks should have high confidence (>0.8): max = {}",
+            max_confidence
+        );
+
+        // === Test Profitable vs Unprofitable Confidence Comparison ===
+        let profitable_attacks_avg = attacks
+            .iter()
+            .filter(|a| {
+                let profit = a.back_run_tx.usd_value_out
+                    - a.front_run_tx.usd_value_in
+                    - a.front_run_tx.gas_cost_usd
+                    - a.back_run_tx.gas_cost_usd;
+                profit > 0.0
+            })
+            .map(|a| a.confidence_score)
+            .sum::<f32>()
+            / attacks.len() as f32;
+
+        assert!(
+            profitable_attacks_avg > unprofitable_attack.confidence_score,
+            "Average profitable attack confidence ({:.3}) should be higher than unprofitable attack confidence ({:.3})",
+            profitable_attacks_avg, unprofitable_attack.confidence_score
+        );
+    }
+
+    #[test]
+    fn test_token_equivalence_groups() {
+        assert_eq!(get_token_equivalence_group("USDC"), "STABLECOINS");
+        assert_eq!(get_token_equivalence_group("USDT"), "STABLECOINS");
+        assert_eq!(get_token_equivalence_group("DAI"), "STABLECOINS");
+        assert_eq!(get_token_equivalence_group("ETH"), "ETH_GROUP");
+        assert_eq!(get_token_equivalence_group("WETH"), "ETH_GROUP");
+        assert_eq!(get_token_equivalence_group("WBTC"), "BTC_GROUP");
+        assert_eq!(get_token_equivalence_group("SHIB"), "SHIB");
+    }
+
+    #[test]
+    fn test_are_tokens_equivalent() {
+        assert!(are_tokens_equivalent("USDC", "USDT"));
+        assert!(are_tokens_equivalent("ETH", "WETH"));
+        assert!(are_tokens_equivalent("WBTC", "renBTC"));
+        assert!(!are_tokens_equivalent("USDC", "ETH"));
+        assert!(!are_tokens_equivalent("SHIB", "USDC"));
+    }
+
+    #[test]
+    fn test_are_tokens_reversed() {
+        let tx_a = SwapTransaction {
+            tx_hash: "0x1".to_string(),
+            block_number: 1,
+            timestamp: 1,
+            tx_position_in_block: 1,
+            from_address: "0x1".to_string(),
+            token_in: "USDC".to_string(),
+            token_out: "ETH".to_string(),
+            amount_in: 1000.0,
+            amount_out: 1.0,
+            gas_price: 100,
+            pool_address: "0xpool".to_string(),
+            token_launch_block: 1,
+            is_contract_caller: false,
+            usd_value_in: 1000.0,
+            usd_value_out: 3200.0,
+            gas_cost_usd: 50.0,
+        };
+
+        let tx_b_reversed = SwapTransaction {
+            token_in: "WETH".to_string(),
+            token_out: "USDT".to_string(),
+            ..tx_a.clone()
+        };
+
+        let tx_b_not_reversed = SwapTransaction {
+            token_in: "USDC".to_string(),
+            token_out: "ETH".to_string(),
+            ..tx_a.clone()
+        };
+
+        assert!(are_tokens_reversed(&tx_a, &tx_b_reversed));
+        assert!(!are_tokens_reversed(&tx_a, &tx_b_not_reversed));
+    }
+
+    #[test]
+    fn test_is_proportional_sandwich() {
+        let front = SwapTransaction {
+            tx_hash: "0x1".to_string(),
+            block_number: 1,
+            timestamp: 1,
+            tx_position_in_block: 1,
+            from_address: "0x1".to_string(),
+            token_in: "USDC".to_string(),
+            token_out: "ETH".to_string(),
+            amount_in: 1000.0,
+            amount_out: 1.0,
+            gas_price: 100,
+            pool_address: "0xpool".to_string(),
+            token_launch_block: 1,
+            is_contract_caller: false,
+            usd_value_in: 1000.0, // 20% of victim
+            usd_value_out: 3200.0,
+            gas_cost_usd: 50.0,
+        };
+
+        let victim = SwapTransaction {
+            usd_value_in: 5000.0,
+            ..front.clone()
+        };
+
+        let back_proportional = SwapTransaction {
+            usd_value_in: 1200.0, // Similar to front (24% of victim)
+            ..front.clone()
+        };
+
+        let back_too_large = SwapTransaction {
+            usd_value_in: 10000.0, // Too large (200% of victim)
+            ..front.clone()
+        };
+
+        assert!(is_proportional_sandwich(
+            &front,
+            &victim,
+            &back_proportional
+        ));
+        assert!(!is_proportional_sandwich(&front, &victim, &back_too_large));
+    }
+
+    #[test]
+    fn test_calculate_victim_price_impact() {
+        let front = SwapTransaction {
+            tx_hash: "0x1".to_string(),
+            block_number: 1,
+            timestamp: 1,
+            tx_position_in_block: 1,
+            from_address: "0x1".to_string(),
+            token_in: "USDC".to_string(),
+            token_out: "ETH".to_string(),
+            amount_in: 1000.0,
+            amount_out: 1.0,
+            gas_price: 100,
+            pool_address: "0xpool".to_string(),
+            token_launch_block: 1,
+            is_contract_caller: false,
+            usd_value_in: 1000.0,
+            usd_value_out: 1000.0, // 1.0 exchange rate
+            gas_cost_usd: 50.0,
+        };
+
+        let victim_worse_rate = SwapTransaction {
+            usd_value_in: 5000.0,
+            usd_value_out: 4500.0, // 0.9 exchange rate (10% worse)
+            ..front.clone()
+        };
+
+        let victim_better_rate = SwapTransaction {
+            usd_value_in: 5000.0,
+            usd_value_out: 5500.0, // 1.1 exchange rate (better)
+            ..front.clone()
+        };
+
+        let impact = calculate_victim_price_impact(&front, &victim_worse_rate);
+        assert!(impact > 0.0, "Should detect price impact");
+        assert!(impact < 0.15, "Impact should be reasonable");
+
+        let no_impact = calculate_victim_price_impact(&front, &victim_better_rate);
+        assert_eq!(
+            no_impact, 0.0,
+            "Should detect no price impact when victim gets better rate"
         );
     }
 }
