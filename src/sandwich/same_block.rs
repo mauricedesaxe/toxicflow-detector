@@ -221,11 +221,34 @@ fn calculate_sandwich_confidence(
         confidence += 0.25;
     }
 
+    if is_proportional_sandwich(front, victim, back) {
+        confidence += 0.15;
+    }
+
     if confidence > 1.0 {
         return 1.0;
     }
 
     return confidence;
+}
+
+/// Check if sandwich trades are proportionally sized to the victim trade.
+/// Professional MEV bots typically size their trades as 10-30% of victim trade.
+fn is_proportional_sandwich(
+    front: &SwapTransaction,
+    victim: &SwapTransaction,
+    back: &SwapTransaction,
+) -> bool {
+    let front_ratio = front.usd_value_in / victim.usd_value_in;
+    let back_ratio = back.usd_value_in / victim.usd_value_in;
+
+    // Front-run should be 5-50% of victim trade
+    let front_proportional = front_ratio >= 0.05 && front_ratio <= 0.5;
+
+    // Back-run should be similar size to front-run (within 2x range)
+    let back_proportional = back_ratio >= front_ratio * 0.5 && back_ratio <= front_ratio * 2.0;
+
+    front_proportional && back_proportional
 }
 
 #[cfg(test)]
@@ -260,6 +283,17 @@ mod tests {
         let attacks = find_same_block_sandwiches(&transactions);
 
         assert_eq!(attacks.len(), 6, "Should detect exactly 6 sandwich attacks");
+
+        // Print detected attacks for debugging
+        for attack in &attacks {
+            println!(
+                "Attack: {} -> {} -> {} (confidence: {:.2})",
+                attack.front_run_tx.tx_hash,
+                attack.victim_tx.tx_hash,
+                attack.back_run_tx.tx_hash,
+                attack.confidence_score
+            );
+        }
 
         let attack_hashes: Vec<(&str, &str, &str)> = attacks
             .iter()
@@ -426,6 +460,18 @@ mod tests {
         assert_ne!(
             weth_attack.front_run_tx.token_in, weth_attack.victim_tx.token_in,
             "WETH/ETH attack should use different but equivalent tokens"
+        );
+
+        // Test proportional sizing detection
+        // Check if any attacks have proportional sizing bonus
+        let has_proportional_bonus = attacks.iter().any(|attack| {
+            let base_confidence = 0.5 + 0.25; // base + profitability bonus
+            attack.confidence_score > base_confidence + 0.1 // additional bonuses beyond basic
+        });
+
+        assert!(
+            has_proportional_bonus,
+            "At least one attack should have proportional sizing or other bonus"
         );
     }
 }
