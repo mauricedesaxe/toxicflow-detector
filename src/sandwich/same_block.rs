@@ -28,7 +28,7 @@ pub struct ConfidenceFlags {
     pub back_is_contract: bool,
     pub is_profitable: bool,
     pub is_proportional: bool,
-    pub price_impact_score: f32,
+    pub price_impact_rate: f32,
     pub total_profit_usd: f64,
 }
 
@@ -224,7 +224,7 @@ fn calculate_sandwich_confidence(
         back.usd_value_out - front.usd_value_in - front.gas_cost_usd - back.gas_cost_usd;
     let is_profitable = total_profit_usd > 0.0;
     let is_proportional = is_proportional_sandwich(front, victim, back);
-    let price_impact_score = calculate_victim_price_impact(front, victim);
+    let price_impact_rate = calculate_victim_price_impact(front, victim);
 
     let mut confidence = 0.3;
 
@@ -252,8 +252,8 @@ fn calculate_sandwich_confidence(
         confidence += 0.15;
     }
 
-    if price_impact_score > 0.0 {
-        confidence += match price_impact_score {
+    if price_impact_rate > 0.0 {
+        confidence += match price_impact_rate {
             p if p < 0.25 => p,
             _ => 0.25,
         };
@@ -268,7 +268,7 @@ fn calculate_sandwich_confidence(
         back_is_contract,
         is_profitable,
         is_proportional,
-        price_impact_score,
+        price_impact_rate,
         total_profit_usd,
     };
 
