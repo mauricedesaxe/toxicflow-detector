@@ -204,7 +204,7 @@ fn are_tokens_equivalent(token_a: &str, token_b: &str) -> bool {
 /// a sandwich pattern and calculates the confidence that the attacker
 /// is a MEV sandwich bot.
 ///
-/// The base confidence is 0.5, a coin flip. The max confidence is 1.0.
+/// The base confidence is 0.3. The max confidence is 1.0.
 ///
 /// TODO: This detection "algorithm" is very rudimentary to say the least.
 /// We can add things like a swap size factor, profit validation in USD,
@@ -216,7 +216,7 @@ fn calculate_sandwich_confidence(
     victim: &SwapTransaction,
     back: &SwapTransaction,
 ) -> (f32, ConfidenceFlags) {
-    let mut confidence = 0.5;
+    let mut confidence = 0.3;
 
     let higher_front_gas_price = front.gas_price > victim.gas_price;
     if higher_front_gas_price {
@@ -486,7 +486,7 @@ mod tests {
         // Check that all attacks have reasonable confidence scores
         for attack in &attacks {
             assert!(
-                attack.confidence_score >= 0.5,
+                attack.confidence_score >= 0.3,
                 "All attacks should have at least base confidence"
             );
             assert!(
