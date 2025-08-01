@@ -139,6 +139,11 @@ fn are_tokens_reversed(a: &SwapTransaction, b: &SwapTransaction) -> bool {
 ///
 /// Returning `true` doesn't mean it was a (profitable) sandwich attack,
 /// but it means the swap directions are there.
+///
+/// TODO: An attacker could co-ordinate across multiple addresses to
+/// obfuscate the attack. We could improve this by having a separate
+/// module that tracks potentially related addresses and use it here
+/// instead of a static `==` between `front.from_address` and `back.from_address`.
 fn is_sandwich_pattern(
     front: &SwapTransaction,
     victim: &SwapTransaction,
