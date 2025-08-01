@@ -15,7 +15,7 @@ pub struct ConfidenceFlags {
 }
 
 #[derive(Debug)]
-pub struct SandwichAttack {
+pub struct SandwichAttackByHeuristics {
     pub front_run_tx: SwapTransaction,
     pub victim_tx: SwapTransaction,
     pub back_run_tx: SwapTransaction,
@@ -27,7 +27,9 @@ pub struct SandwichAttack {
 ///
 /// First we group transactions by their block number, sorting them by position within the block.
 /// Then we find sandwiches within each block.
-pub fn find_same_block_sandwiches(transactions: &[SwapTransaction]) -> Vec<SandwichAttack> {
+pub fn find_same_block_sandwiches(
+    transactions: &[SwapTransaction],
+) -> Vec<SandwichAttackByHeuristics> {
     let mut attacks = Vec::new();
     let transactions_by_block = group_transactions_by_block(transactions);
 
@@ -66,7 +68,7 @@ fn group_transactions_by_block(
 /// and find any sandwich attacks.
 fn find_sandwiches_in_block(
     transactions: &[SwapTransaction],
-) -> Result<Vec<SandwichAttack>, String> {
+) -> Result<Vec<SandwichAttackByHeuristics>, String> {
     let mut attacks = Vec::new();
 
     if transactions.len() < 3 {
@@ -93,7 +95,7 @@ fn find_sandwiches_in_block(
                 if is_sandwich_pattern(front_tx, victim_tx, back_tx) {
                     let confidence_flags = extract_sandwich_evidence(front_tx, victim_tx, back_tx);
                     let confidence_score = calculate_sandwich_confidence(&confidence_flags);
-                    attacks.push(SandwichAttack {
+                    attacks.push(SandwichAttackByHeuristics {
                         front_run_tx: front_tx.clone(),
                         victim_tx: victim_tx.clone(),
                         back_run_tx: back_tx.clone(),
