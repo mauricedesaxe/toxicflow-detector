@@ -314,6 +314,9 @@ fn is_proportional_sandwich(
 ///
 /// TODO: It may be better to calculate this using the pool's reserves
 /// vs USD numbers like we do now.
+///
+/// TODO: Attributing the price impact to the would be front-runner could be a mistake
+/// if other wallets also buy the same token in between the front-runner and victim.
 fn calculate_victim_price_impact(front: &SwapTransaction, victim: &SwapTransaction) -> f32 {
     // Only calculate if they're trading in the same direction (same tokens)
     if !are_tokens_equivalent(&front.token_in, &victim.token_in)
