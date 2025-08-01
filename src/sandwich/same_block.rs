@@ -20,12 +20,25 @@ pub struct SwapTransaction {
     pub gas_cost_usd: f64,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
+pub struct ConfidenceFlags {
+    pub higher_front_gas_price: bool,
+    pub lower_back_gas_price: bool,
+    pub front_is_contract: bool,
+    pub back_is_contract: bool,
+    pub is_profitable: bool,
+    pub is_proportional: bool,
+    pub price_impact_score: f32,
+    pub total_profit_usd: f64,
+}
+
+#[derive(Debug)]
 pub struct SandwichAttack {
     pub front_run_tx: SwapTransaction,
     pub victim_tx: SwapTransaction,
     pub back_run_tx: SwapTransaction,
     pub confidence_score: f32,
+    pub confidence_flags: ConfidenceFlags,
 }
 
 /// Find same block sandwich attacks in a list of swap transactions.
@@ -96,13 +109,14 @@ fn find_sandwiches_in_block(
                 let victim_tx = &transactions[victim_pos];
 
                 if is_sandwich_pattern(front_tx, victim_tx, back_tx) {
+                    let (confidence_score, confidence_flags) =
+                        calculate_sandwich_confidence(front_tx, victim_tx, back_tx);
                     attacks.push(SandwichAttack {
                         front_run_tx: front_tx.clone(),
                         victim_tx: victim_tx.clone(),
                         back_run_tx: back_tx.clone(),
-                        confidence_score: calculate_sandwich_confidence(
-                            front_tx, victim_tx, back_tx,
-                        ),
+                        confidence_score,
+                        confidence_flags,
                     });
                 }
             }
@@ -196,48 +210,63 @@ fn calculate_sandwich_confidence(
     front: &SwapTransaction,
     victim: &SwapTransaction,
     back: &SwapTransaction,
-) -> f32 {
+) -> (f32, ConfidenceFlags) {
     let mut confidence = 0.5;
 
-    if front.gas_price > victim.gas_price {
+    let higher_front_gas_price = front.gas_price > victim.gas_price;
+    if higher_front_gas_price {
         confidence += 0.2;
     }
 
-    if back.gas_price < victim.gas_price {
+    let lower_back_gas_price = back.gas_price < victim.gas_price;
+    if lower_back_gas_price {
         confidence += 0.1;
     }
 
-    if front.is_contract_caller {
+    let front_is_contract = front.is_contract_caller;
+    if front_is_contract {
         confidence += 0.1;
     }
 
-    if back.is_contract_caller {
+    let back_is_contract = back.is_contract_caller;
+    if back_is_contract {
         confidence += 0.1;
     }
 
-    let total_profit =
+    let total_profit_usd =
         back.usd_value_out - front.usd_value_in - front.gas_cost_usd - back.gas_cost_usd;
-    if total_profit > 0.0 {
+    let is_profitable = total_profit_usd > 0.0;
+    if is_profitable {
         confidence += 0.25;
     }
 
-    if is_proportional_sandwich(front, victim, back) {
+    let is_proportional = is_proportional_sandwich(front, victim, back);
+    if is_proportional {
         confidence += 0.15;
     }
 
-    let price_impact = calculate_victim_price_impact(front, victim);
-    if price_impact > 0.0 {
-        confidence += match price_impact {
+    let price_impact_score = calculate_victim_price_impact(front, victim);
+    if price_impact_score > 0.0 {
+        confidence += match price_impact_score {
             p if p < 0.25 => p,
             _ => 0.25,
         };
     }
 
-    if confidence > 1.0 {
-        return 1.0;
-    }
+    let final_confidence = if confidence > 1.0 { 1.0 } else { confidence };
 
-    return confidence;
+    let flags = ConfidenceFlags {
+        higher_front_gas_price,
+        lower_back_gas_price,
+        front_is_contract,
+        back_is_contract,
+        is_profitable,
+        is_proportional,
+        price_impact_score,
+        total_profit_usd,
+    };
+
+    (final_confidence, flags)
 }
 
 /// Check if sandwich trades are proportionally sized to the victim trade.
