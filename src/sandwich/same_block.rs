@@ -187,6 +187,8 @@ fn is_sandwich_pattern(
 }
 
 /// Token equivalence groups for cross-token sandwich detection
+///
+/// TODO: Certainly there could be more equivalent tokens out there.
 fn get_token_equivalence_group(token: &str) -> &str {
     match token {
         // Stablecoins - all ~$1 USD
