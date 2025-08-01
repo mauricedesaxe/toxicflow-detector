@@ -328,4 +328,186 @@ mod tests {
 
         transactions
     }
+
+    #[test]
+    fn test_find_same_block_sandwiches_with_sample_data() {
+        let transactions = load_sample_transactions();
+        let attacks = find_same_block_sandwiches(&transactions);
+
+        // Should find exactly 6 sandwich attacks from the sample data
+        assert_eq!(attacks.len(), 6, "Expected 6 sandwich attacks");
+
+        // Block 12360: Basic USDC/SHIB sandwich
+        let block_12360_attack = attacks
+            .iter()
+            .find(|a| a.front_run_tx.block_number == 12360)
+            .expect("Should find attack in block 12360");
+
+        assert_eq!(block_12360_attack.front_run_tx.from_address, "0xattacker1");
+        assert_eq!(block_12360_attack.victim_tx.from_address, "0xvictim1");
+        assert_eq!(block_12360_attack.back_run_tx.from_address, "0xattacker1");
+        assert_eq!(block_12360_attack.front_run_tx.token_in, "USDC");
+        assert_eq!(block_12360_attack.front_run_tx.token_out, "SHIB");
+        assert_eq!(block_12360_attack.back_run_tx.token_in, "SHIB");
+        assert_eq!(block_12360_attack.back_run_tx.token_out, "USDC");
+
+        // Should be profitable (950 out - 1000 in - gas costs = negative, but let's check the flags)
+        assert!(
+            block_12360_attack.confidence_flags.total_profit_usd < 0.0,
+            "This attack is actually not profitable"
+        );
+        assert!(!block_12360_attack.confidence_flags.is_profitable);
+        assert!(
+            block_12360_attack.confidence_score > 0.5,
+            "Should have some confidence indicators"
+        );
+
+        // Block 12361: ETH/NEWTOKEN sandwich with contract callers
+        let block_12361_attack = attacks
+            .iter()
+            .find(|a| a.front_run_tx.block_number == 12361)
+            .expect("Should find attack in block 12361");
+
+        assert_eq!(block_12361_attack.front_run_tx.from_address, "0xbot123");
+        assert_eq!(block_12361_attack.victim_tx.from_address, "0xinnocent");
+        assert_eq!(block_12361_attack.back_run_tx.from_address, "0xbot123");
+        assert!(block_12361_attack.confidence_flags.front_is_contract);
+        assert!(block_12361_attack.confidence_flags.back_is_contract);
+        assert!(
+            block_12361_attack.confidence_flags.higher_front_gas_price,
+            "Front gas price (300) > victim gas price (150)"
+        );
+        assert!(
+            block_12361_attack.confidence_flags.lower_back_gas_price,
+            "Back gas price (80) < victim gas price (150)"
+        );
+
+        // This should be profitable: 2000 out - 1600 in - gas costs
+        let expected_profit = 2000.0 - 1600.0 - 240.0 - 64.0; // around 96 USD
+        assert!(block_12361_attack.confidence_flags.is_profitable);
+        assert!(
+            (block_12361_attack.confidence_flags.total_profit_usd - expected_profit).abs() < 1.0
+        );
+
+        // Block 12362: USDC/SHIB sandwich with unrelated transactions in between
+        let block_12362_attack = attacks
+            .iter()
+            .find(|a| a.front_run_tx.block_number == 12362)
+            .expect("Should find attack in block 12362");
+
+        assert_eq!(
+            block_12362_attack.front_run_tx.from_address,
+            "0xsandwich_bot"
+        );
+        assert_eq!(
+            block_12362_attack.victim_tx.from_address,
+            "0xinnocent_trader"
+        );
+        assert_eq!(
+            block_12362_attack.back_run_tx.from_address,
+            "0xsandwich_bot"
+        );
+        assert!(block_12362_attack.confidence_flags.front_is_contract);
+        assert!(block_12362_attack.confidence_flags.back_is_contract);
+        assert!(
+            block_12362_attack.confidence_flags.higher_front_gas_price,
+            "Front gas price (280) > victim gas price (180)"
+        );
+        assert!(
+            block_12362_attack.confidence_flags.lower_back_gas_price,
+            "Back gas price (120) < victim gas price (180)"
+        );
+
+        // Block 12363: Cross-DEX USDC/ETH sandwich
+        let block_12363_attack = attacks
+            .iter()
+            .find(|a| a.front_run_tx.block_number == 12363)
+            .expect("Should find attack in block 12363");
+
+        assert_eq!(block_12363_attack.front_run_tx.from_address, "0xcross_bot");
+        assert_eq!(block_12363_attack.victim_tx.from_address, "0xtrader123");
+        assert_eq!(block_12363_attack.back_run_tx.from_address, "0xcross_bot");
+        assert!(block_12363_attack.confidence_flags.front_is_contract);
+        assert!(block_12363_attack.confidence_flags.back_is_contract);
+
+        // Block 12364: Token equivalence test (USDC/USDT are equivalent stablecoins)
+        let block_12364_attack = attacks
+            .iter()
+            .find(|a| a.front_run_tx.block_number == 12364)
+            .expect("Should find attack in block 12364 testing stablecoin equivalence");
+
+        assert_eq!(block_12364_attack.front_run_tx.from_address, "0xstable_bot");
+        assert_eq!(block_12364_attack.victim_tx.from_address, "0xlegit_user");
+        assert_eq!(block_12364_attack.back_run_tx.from_address, "0xstable_bot");
+        // Front: USDC->SHIB, Victim: USDT->SHIB (equivalent), Back: SHIB->USDT (equivalent)
+        assert_eq!(block_12364_attack.front_run_tx.token_in, "USDC");
+        assert_eq!(block_12364_attack.victim_tx.token_in, "USDT");
+        assert_eq!(block_12364_attack.back_run_tx.token_out, "USDT");
+
+        // Block 12365: Token equivalence test (ETH/WETH are equivalent)
+        let block_12365_attack = attacks
+            .iter()
+            .find(|a| a.front_run_tx.block_number == 12365)
+            .expect("Should find attack in block 12365 testing ETH/WETH equivalence");
+
+        assert_eq!(block_12365_attack.front_run_tx.from_address, "0xweth_mev");
+        assert_eq!(block_12365_attack.victim_tx.from_address, "0xeth_holder");
+        assert_eq!(block_12365_attack.back_run_tx.from_address, "0xweth_mev");
+        // Front: WETH->NEWTOKEN, Victim: ETH->NEWTOKEN (equivalent), Back: NEWTOKEN->WETH
+        assert_eq!(block_12365_attack.front_run_tx.token_in, "WETH");
+        assert_eq!(block_12365_attack.victim_tx.token_in, "ETH");
+        assert_eq!(block_12365_attack.back_run_tx.token_out, "WETH");
+
+        // Check that all attacks have reasonable confidence scores
+        for attack in &attacks {
+            assert!(
+                attack.confidence_score >= 0.5,
+                "All attacks should have at least base confidence"
+            );
+            assert!(
+                attack.confidence_score <= 1.0,
+                "Confidence should not exceed 1.0"
+            );
+
+            // Verify attack structure makes sense
+            assert_ne!(
+                attack.front_run_tx.from_address, attack.victim_tx.from_address,
+                "Attacker should not be victim"
+            );
+            assert_eq!(
+                attack.front_run_tx.from_address, attack.back_run_tx.from_address,
+                "Front and back should be same attacker"
+            );
+            assert!(
+                attack.front_run_tx.tx_position_in_block < attack.victim_tx.tx_position_in_block,
+                "Front should come before victim"
+            );
+            assert!(
+                attack.victim_tx.tx_position_in_block < attack.back_run_tx.tx_position_in_block,
+                "Victim should come before back"
+            );
+        }
+
+        println!("Found {} sandwich attacks:", attacks.len());
+        for (i, attack) in attacks.iter().enumerate() {
+            println!(
+                "Attack {}: Block {} - Confidence {:.3}",
+                i + 1,
+                attack.front_run_tx.block_number,
+                attack.confidence_score
+            );
+            println!(
+                "  Profit: ${:.2} USD",
+                attack.confidence_flags.total_profit_usd
+            );
+            println!(
+                "  Flags: profitable={}, contracts={}/{}, gas_priority={}/{}",
+                attack.confidence_flags.is_profitable,
+                attack.confidence_flags.front_is_contract,
+                attack.confidence_flags.back_is_contract,
+                attack.confidence_flags.higher_front_gas_price,
+                attack.confidence_flags.lower_back_gas_price
+            );
+        }
+    }
 }
