@@ -342,7 +342,7 @@ mod tests {
 
     fn load_sample_transactions() -> Vec<SwapTransaction> {
         let csv_content =
-            fs::read_to_string("data/sample_swaps.csv").expect("Failed to read sample CSV file");
+            fs::read_to_string("data/sandwiches.csv").expect("Failed to read sample CSV file");
 
         let mut reader = csv::Reader::from_reader(csv_content.as_bytes());
         let mut transactions = Vec::new();
