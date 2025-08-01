@@ -209,7 +209,8 @@ fn are_tokens_equivalent(token_a: &str, token_b: &str) -> bool {
 /// TODO: This detection "algorithm" is very rudimentary to say the least.
 /// We can add things like a flashloan detection, known MEV bot addresses,
 /// priority fee analysis, figure out private mempools,
-/// and more sophisticated confidence scoring weights.
+/// and more sophisticated confidence scoring weights (maybe accounting
+/// for probability of false positives of each flag?).
 fn calculate_sandwich_confidence(
     front: &SwapTransaction,
     victim: &SwapTransaction,
