@@ -109,8 +109,8 @@ fn find_sandwiches_in_block(
                 let victim_tx = &transactions[victim_pos];
 
                 if is_sandwich_pattern(front_tx, victim_tx, back_tx) {
-                    let (confidence_score, confidence_flags) =
-                        calculate_sandwich_confidence(front_tx, victim_tx, back_tx);
+                    let confidence_flags = extract_sandwich_evidence(front_tx, victim_tx, back_tx);
+                    let confidence_score = calculate_sandwich_confidence(&confidence_flags);
                     attacks.push(SandwichAttack {
                         front_run_tx: front_tx.clone(),
                         victim_tx: victim_tx.clone(),
@@ -200,22 +200,12 @@ fn are_tokens_equivalent(token_a: &str, token_b: &str) -> bool {
     get_token_equivalence_group(token_a) == get_token_equivalence_group(token_b)
 }
 
-/// Takes 3 swap transactions which have already been validated to have
-/// a sandwich pattern and calculates the confidence that the attacker
-/// is a MEV sandwich bot.
-///
-/// The base confidence is 0.3. The max confidence is 1.0.
-///
-/// TODO: This detection "algorithm" is very rudimentary to say the least.
-/// We can add things like a flashloan detection, known MEV bot addresses,
-/// priority fee analysis, figure out private mempools,
-/// and more sophisticated confidence scoring weights (maybe accounting
-/// for probability of false positives of each flag?).
-fn calculate_sandwich_confidence(
+/// Extract all evidence/signals from a potential sandwich attack.
+fn extract_sandwich_evidence(
     front: &SwapTransaction,
     victim: &SwapTransaction,
     back: &SwapTransaction,
-) -> (f32, ConfidenceFlags) {
+) -> ConfidenceFlags {
     let higher_front_gas_price = front.gas_price > victim.gas_price;
     let lower_back_gas_price = back.gas_price < victim.gas_price;
     let front_is_contract = front.is_contract_caller;
@@ -226,42 +216,7 @@ fn calculate_sandwich_confidence(
     let is_proportional = is_proportional_sandwich(front, victim, back);
     let price_impact_rate = calculate_victim_price_impact(front, victim);
 
-    let mut confidence = 0.3;
-
-    if higher_front_gas_price {
-        confidence += 0.2;
-    }
-
-    if lower_back_gas_price {
-        confidence += 0.1;
-    }
-
-    if front_is_contract {
-        confidence += 0.1;
-    }
-
-    if back_is_contract {
-        confidence += 0.1;
-    }
-
-    if is_profitable {
-        confidence += 0.25;
-    }
-
-    if is_proportional {
-        confidence += 0.15;
-    }
-
-    if price_impact_rate > 0.0 {
-        confidence += match price_impact_rate {
-            p if p < 0.25 => p,
-            _ => 0.25,
-        };
-    }
-
-    let final_confidence = if confidence > 1.0 { 1.0 } else { confidence };
-
-    let flags = ConfidenceFlags {
+    ConfidenceFlags {
         higher_front_gas_price,
         lower_back_gas_price,
         front_is_contract,
@@ -270,9 +225,55 @@ fn calculate_sandwich_confidence(
         is_proportional,
         price_impact_rate,
         total_profit_usd,
-    };
+    }
+}
 
-    (final_confidence, flags)
+/// Score the sandwich evidence given the confidence flags.
+///
+/// TODO: This detection "algorithm" is very rudimentary to say the least.
+/// We can add things like a flashloan detection, known MEV bot addresses,
+/// priority fee analysis, figure out private mempools,
+/// and more sophisticated confidence scoring weights (maybe accounting
+/// for probability of false positives of each flag?).
+fn calculate_sandwich_confidence(evidence: &ConfidenceFlags) -> f32 {
+    let mut confidence = 0.3;
+
+    if evidence.higher_front_gas_price {
+        confidence += 0.2;
+    }
+
+    if evidence.lower_back_gas_price {
+        confidence += 0.1;
+    }
+
+    if evidence.front_is_contract {
+        confidence += 0.1;
+    }
+
+    if evidence.back_is_contract {
+        confidence += 0.1;
+    }
+
+    if evidence.is_profitable {
+        confidence += 0.25;
+    }
+
+    if evidence.is_proportional {
+        confidence += 0.15;
+    }
+
+    if evidence.price_impact_rate > 0.0 {
+        confidence += match evidence.price_impact_rate {
+            p if p < 0.25 => p,
+            _ => 0.25,
+        };
+    }
+
+    if confidence > 1.0 {
+        1.0
+    } else {
+        confidence
+    }
 }
 
 /// Check if sandwich trades are proportionally sized to the victim trade.
