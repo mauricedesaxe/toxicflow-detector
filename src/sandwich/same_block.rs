@@ -279,9 +279,11 @@ fn calculate_sandwich_confidence(evidence: &ConfidenceFlags) -> f32 {
 /// Check if sandwich trades are proportionally sized to the victim trade.
 /// Professional MEV bots typically size their trades as 10-30% of victim trade.
 ///
-/// TODO: This is rudimentary, we could improve it by calculating real
-/// price impact of various sizes and expecting the attacker to try and
-/// maximize profit.
+/// TODO: We could improve this by calculating real price impact of various
+/// sizes and expecting the attacker to try and maximize profit.
+///
+/// TODO: We could improve this by comparing against a collective of
+/// victims.
 fn is_proportional_sandwich(
     front: &SwapTransaction,
     victim: &SwapTransaction,
