@@ -207,8 +207,7 @@ fn are_tokens_equivalent(token_a: &str, token_b: &str) -> bool {
 /// The base confidence is 0.3. The max confidence is 1.0.
 ///
 /// TODO: This detection "algorithm" is very rudimentary to say the least.
-/// We can add things like a swap size factor, profit validation in USD,
-/// flashloan detection, known MEV bot addresses,
+/// We can add things like a flashloan detection, known MEV bot addresses,
 /// priority fee analysis, figure out private mempools,
 /// and more sophisticated confidence scoring weights.
 fn calculate_sandwich_confidence(
