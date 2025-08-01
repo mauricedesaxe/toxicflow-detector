@@ -300,6 +300,9 @@ fn is_proportional_sandwich(
 /// Calculate price impact suffered by victim due to front-running.
 /// Returns the percentage worse rate the victim got (e.g., 0.05 = 5% worse).
 /// If the victim got a better rate than the front-runner, returns 0.0.
+///
+/// TODO: It may be better to calculate this using the pool's reserves
+/// vs USD numbers like we do now.
 fn calculate_victim_price_impact(front: &SwapTransaction, victim: &SwapTransaction) -> f32 {
     // Only calculate if they're trading in the same direction (same tokens)
     if !are_tokens_equivalent(&front.token_in, &victim.token_in)
