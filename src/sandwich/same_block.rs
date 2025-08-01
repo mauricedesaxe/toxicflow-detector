@@ -144,6 +144,11 @@ fn is_sandwich_pattern(
     victim: &SwapTransaction,
     back: &SwapTransaction,
 ) -> bool {
+    // Front-run and victim should be same pool
+    if front.pool_address != victim.pool_address {
+        return false;
+    }
+
     // Should be same attacker
     if front.from_address != back.from_address {
         return false;
@@ -418,17 +423,37 @@ mod tests {
             "Back gas price (120) < victim gas price (180)"
         );
 
-        // Block 12363: Cross-DEX USDC/ETH sandwich
-        let block_12363_attack = attacks
-            .iter()
-            .find(|a| a.front_run_tx.block_number == 12363)
-            .expect("Should find attack in block 12363");
+        // Block 12363: Cross-DEX case is correctly filtered out as false positive
+        // (front-run and victim used different pools, so no price manipulation occurred)
 
-        assert_eq!(block_12363_attack.front_run_tx.from_address, "0xcross_bot");
-        assert_eq!(block_12363_attack.victim_tx.from_address, "0xtrader123");
-        assert_eq!(block_12363_attack.back_run_tx.from_address, "0xcross_bot");
-        assert!(block_12363_attack.confidence_flags.front_is_contract);
-        assert!(block_12363_attack.confidence_flags.back_is_contract);
+        // Block 12366: Legitimate cross-DEX sandwich (front-run and victim same pool, back-run different pool)
+        let block_12366_attack = attacks
+            .iter()
+            .find(|a| a.front_run_tx.block_number == 12366)
+            .expect("Should find legitimate cross-DEX attack in block 12366");
+
+        assert_eq!(block_12366_attack.front_run_tx.from_address, "0xlegit_mev");
+        assert_eq!(block_12366_attack.victim_tx.from_address, "0xinnocent_dex");
+        assert_eq!(block_12366_attack.back_run_tx.from_address, "0xlegit_mev");
+
+        // Front-run and victim should use same pool (this is what makes it a valid sandwich)
+        assert_eq!(
+            block_12366_attack.front_run_tx.pool_address,
+            "0xpool_uniswap"
+        );
+        assert_eq!(block_12366_attack.victim_tx.pool_address, "0xpool_uniswap");
+
+        // Back-run can use different pool (attacker optimizing exit)
+        assert_eq!(
+            block_12366_attack.back_run_tx.pool_address,
+            "0xpool_sushiswap"
+        );
+
+        assert!(block_12366_attack.confidence_flags.front_is_contract);
+        assert!(block_12366_attack.confidence_flags.back_is_contract);
+        assert!(block_12366_attack.confidence_flags.higher_front_gas_price);
+        assert!(block_12366_attack.confidence_flags.lower_back_gas_price);
+        assert!(block_12366_attack.confidence_flags.is_profitable);
 
         // Block 12364: Token equivalence test (USDC/USDT are equivalent stablecoins)
         let block_12364_attack = attacks

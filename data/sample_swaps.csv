@@ -42,3 +42,6 @@ tx_hash,block_number,timestamp,tx_position_in_block,from_address,token_in,token_
 0xweth_front,12365,1640995524,1,0xweth_mev,WETH,NEWTOKEN,1,500000,300,0xpool4,12347,true,3200.0,2500.0,240.0
 0xweth_victim,12365,1640995524,2,0xeth_holder,ETH,NEWTOKEN,2,900000,180,0xpool4,12347,false,6400.0,4200.0,144.0
 0xweth_back,12365,1640995524,3,0xweth_mev,NEWTOKEN,WETH,550000,1.1,150,0xpool4,12347,true,2750.0,3700.0,120.0
+0xcrossdex_front,12366,1640995536,1,0xlegit_mev,USDC,ETH,3000,0.9,280,0xpool_uniswap,10000,true,3000.0,2880.0,180.0
+0xcrossdex_victim,12366,1640995536,2,0xinnocent_dex,USDC,ETH,12000,3.5,150,0xpool_uniswap,10000,false,12000.0,11200.0,120.0
+0xcrossdex_back,12366,1640995536,3,0xlegit_mev,ETH,USDC,0.95,3500,140,0xpool_sushiswap,10000,true,3040.0,3500.0,90.0
