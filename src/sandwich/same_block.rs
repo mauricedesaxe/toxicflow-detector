@@ -215,41 +215,42 @@ fn calculate_sandwich_confidence(
     victim: &SwapTransaction,
     back: &SwapTransaction,
 ) -> (f32, ConfidenceFlags) {
+    let higher_front_gas_price = front.gas_price > victim.gas_price;
+    let lower_back_gas_price = back.gas_price < victim.gas_price;
+    let front_is_contract = front.is_contract_caller;
+    let back_is_contract = back.is_contract_caller;
+    let total_profit_usd =
+        back.usd_value_out - front.usd_value_in - front.gas_cost_usd - back.gas_cost_usd;
+    let is_profitable = total_profit_usd > 0.0;
+    let is_proportional = is_proportional_sandwich(front, victim, back);
+    let price_impact_score = calculate_victim_price_impact(front, victim);
+
     let mut confidence = 0.3;
 
-    let higher_front_gas_price = front.gas_price > victim.gas_price;
     if higher_front_gas_price {
         confidence += 0.2;
     }
 
-    let lower_back_gas_price = back.gas_price < victim.gas_price;
     if lower_back_gas_price {
         confidence += 0.1;
     }
 
-    let front_is_contract = front.is_contract_caller;
     if front_is_contract {
         confidence += 0.1;
     }
 
-    let back_is_contract = back.is_contract_caller;
     if back_is_contract {
         confidence += 0.1;
     }
 
-    let total_profit_usd =
-        back.usd_value_out - front.usd_value_in - front.gas_cost_usd - back.gas_cost_usd;
-    let is_profitable = total_profit_usd > 0.0;
     if is_profitable {
         confidence += 0.25;
     }
 
-    let is_proportional = is_proportional_sandwich(front, victim, back);
     if is_proportional {
         confidence += 0.15;
     }
 
-    let price_impact_score = calculate_victim_price_impact(front, victim);
     if price_impact_score > 0.0 {
         confidence += match price_impact_score {
             p if p < 0.25 => p,
