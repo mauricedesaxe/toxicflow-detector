@@ -1,4 +1,5 @@
 pub mod same_block_heuristics;
+pub mod same_block_sim;
 pub mod tokens;
 pub mod transactions;
 pub mod utils;
