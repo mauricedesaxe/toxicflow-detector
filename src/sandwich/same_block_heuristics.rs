@@ -1,6 +1,6 @@
-use std::collections::HashMap;
-
-use super::types::SwapTransaction;
+use super::tokens::{are_tokens_equivalent, are_tokens_reversed};
+use super::transactions::{group_transactions_by_block, SwapTransaction};
+use super::utils::is_sandwich_pattern;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct ConfidenceFlags {
@@ -42,26 +42,6 @@ pub fn find_same_block_sandwiches(
     }
 
     return attacks;
-}
-
-/// Groups transactions by their block number, sorting them by position within the block.
-fn group_transactions_by_block(
-    transactions: &[SwapTransaction],
-) -> HashMap<u64, Vec<SwapTransaction>> {
-    let mut grouped = HashMap::new();
-
-    for tx in transactions {
-        grouped
-            .entry(tx.block_number)
-            .or_insert_with(Vec::new)
-            .push(tx.clone());
-    }
-
-    for txs in grouped.values_mut() {
-        txs.sort_by_key(|tx| tx.tx_position_in_block);
-    }
-
-    return grouped;
 }
 
 /// Go through the given swap transactions (assumed to be in the same block)
@@ -108,87 +88,6 @@ fn find_sandwiches_in_block(
     }
 
     Ok(attacks)
-}
-
-/// Checks if the tokens in the swap transactions are reversed,
-/// for example buying first and selling second.
-/// It supports economically equivalent tokens (e.g., USDC/USDT, ETH/WETH).
-fn are_tokens_reversed(a: &SwapTransaction, b: &SwapTransaction) -> bool {
-    return are_tokens_equivalent(&a.token_in, &b.token_out)
-        && are_tokens_equivalent(&a.token_out, &b.token_in);
-}
-
-/// A rudimentary sandwich pattern detection function.
-/// It assumes the transactions are in the correct order (front, victim, back).
-///
-/// Returning `true` doesn't mean it was a (profitable) sandwich attack,
-/// but it means the swap directions are there.
-///
-/// TODO: An attacker could co-ordinate across multiple addresses to
-/// obfuscate the attack. We could improve this by having a separate
-/// module that tracks potentially related addresses and use it here
-/// instead of a static `==` between `front.from_address` and `back.from_address`.
-fn is_sandwich_pattern(
-    front: &SwapTransaction,
-    victim: &SwapTransaction,
-    back: &SwapTransaction,
-) -> bool {
-    // Front-run and victim should be same pool
-    if front.pool_address != victim.pool_address {
-        return false;
-    }
-
-    // Should be same attacker
-    if front.from_address != back.from_address {
-        return false;
-    }
-
-    // Attacker should not be victim
-    if front.from_address == victim.from_address {
-        return false;
-    }
-
-    // Attacker should have gotten equivalent token back
-    if !are_tokens_equivalent(&front.token_in, &back.token_out) {
-        return false;
-    }
-
-    // Front and victim should be same token direction (attacker buys before victim)
-    if !are_tokens_equivalent(&front.token_in, &victim.token_in)
-        || !are_tokens_equivalent(&front.token_out, &victim.token_out)
-    {
-        return false;
-    }
-
-    // Victim and back should be different token direction (attacker sells back to victim)
-    if are_tokens_equivalent(&victim.token_in, &back.token_in)
-        && are_tokens_equivalent(&victim.token_out, &back.token_out)
-    {
-        return false;
-    }
-
-    return true;
-}
-
-/// Token equivalence groups for cross-token sandwich detection
-///
-/// TODO: Certainly there could be more equivalent tokens out there.
-fn get_token_equivalence_group(token: &str) -> &str {
-    match token {
-        // Stablecoins - all ~$1 USD
-        "USDC" | "USDT" | "DAI" | "FRAX" | "BUSD" => "STABLECOINS",
-        // ETH variants
-        "ETH" | "WETH" | "stETH" => "ETH_GROUP",
-        // Bitcoin variants
-        "WBTC" | "renBTC" | "sBTC" => "BTC_GROUP",
-        // Everything else is its own group
-        _ => token,
-    }
-}
-
-/// Check if two tokens are economically equivalent
-fn are_tokens_equivalent(token_a: &str, token_b: &str) -> bool {
-    get_token_equivalence_group(token_a) == get_token_equivalence_group(token_b)
 }
 
 /// Extract all evidence/signals from a potential sandwich attack.
