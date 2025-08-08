@@ -1,8 +1,9 @@
 # Toxic flow detector
 
-Toxic flow = MEV, bots, wash trading, etc.
-
-This is a toxic flow detector so the idea is it looks through the blockchain and identifies transactions and/or wallets that are considered toxic.
+Toxic flow = MEV, bots, wash trading, etc. 
+I am building a proof of concept to index DEX transactions and detect toxic flow. 
+I believe I’ll be able to find a significant amount of trading volume is toxic. 
+This is a work in progress as of right now.
 
 ## Version 1 planning
 
